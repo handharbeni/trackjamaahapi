@@ -174,6 +174,32 @@ class User extends REST_Controller {
 		}
 		$this->response($this->responses);
 	}
+	function listchat_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key']) && isset($this->paramspost['id_grup'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 201;
+				$this->responses['status'] = "Gagal Mengambil Daftar Pesan";
+				$this->responses['code'] = $this->code;
+				$this->table = 't_message';
+				$dataSelect = array();
+				$dataSelect['id_grup'] = $this->paramspost['id_grup'];
+				$getGrup = $this->model->select($dataSelect, $this->table);
+				if ($getGrup->num_rows() > 0) {
+					$this->code = 300;
+					$this->responses['data'] = $getGrup->result_array();
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+				}
+			}
+		}
+		$this->response($this->responses);
+	}
 	function updategrup_post(){
 		$this->code = 202;
 		$this->responses['status'] = "Token Tidak Valid";
@@ -355,6 +381,93 @@ class User extends REST_Controller {
 			}
 		}
 		$this->response($this->responses);
+	}
+	function addcontact_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 100;
+				$this->responses['status'] = "Field Kurang Lengkap";
+				$this->responses['code'] = $this->code;
+				$idUser = $dataUser->row()->id;
+				$this->table = 'm_user';
+				if (isset($this->paramspost['no_telp'])) {
+					$this->code = 201;
+					$this->responses['status'] = "User tidak ditemukan";
+					$this->responses['code'] = $this->code;
+					$dataCondition['no_telp'] = $this->paramspost['no_telp'];
+					$getData = $this->model->select($dataCondition, $this->table);
+					if ($getData->num_rows() > 0) {
+						$this->code = 201;
+						$this->responses['status'] = "Gagal menambahkan user";
+						$this->responses['code'] = $this->code;
+						$dataInsert = array();
+						$dataInsert['id_user_ori'] = $idUser;
+						$dataInsert['id_user_desti'] = $getData->row()->id;
+						$this->table = 't_friend';
+						if ($this->model->select($dataInsert, $this->table)->num_rows() < 1) {
+							$insert = $this->model->insert($dataInsert, $this->table);
+							if ($insert) {
+								$this->code = 300;
+								$this->responses['status'] = "Teman telah ditambahkan";
+								$this->responses['code'] = $this->code;
+							}
+						}
+					}
+				}
+			}
+		}
+		$this->response($this->responses);		
+	}
+	function listcontact_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 100;
+				$this->responses['status'] = "Data kosong";
+				$this->responses['code'] = $this->code;
+				$idUser = $dataUser->row()->id;
+				$this->table = 'm_user';
+
+				$query = "SELECT * FROM t_friend 
+							WHERE t_friend.id_user_ori = $idUser OR t_friend.id_user_desti = $idUser";
+				$getIdContact = $this->model->rawQuery($query);
+				if ($getIdContact->num_rows() > 0) {
+					$this->code = 300;
+					$this->responses['status'] = "Daftar teman";
+					$this->responses['code'] = $this->code;
+					$this->responses['data'] = array();
+					foreach ($getIdContact->result_array() as $row) {
+						$item = array();
+						$dataSelect = array();
+						$dataSelect['id'] = $row['id_user_ori']!=$idUser?$row['id_user_ori']:$row['id_user_desti'];
+						$this->table = 'm_user';
+						$selectUser = $this->model->select($dataSelect, $this->table);
+						if ($selectUser->num_rows() > 0) {							
+							$item['id'] = $selectUser->row()->id;
+							$item['nama'] = $selectUser->row()->nama;
+							$item['alamat'] = $selectUser->row()->alamat;
+							$item['no_telp'] = $selectUser->row()->no_telp;
+							$item['email'] = $selectUser->row()->email;
+							$item['image'] = $selectUser->row()->image;
+							$item['sha'] = $selectUser->row()->sha;
+							array_push($this->responses['data'], $item);
+						}
+					}
+				}
+			}
+		}
+		$this->response($this->responses);		
 	}
 	function confirmgrup_post(){
 		$this->code = 202;
