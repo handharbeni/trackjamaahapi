@@ -162,11 +162,50 @@ class User extends REST_Controller {
 				$dataSelect = array();
 				$idUser = $dataUser->row()->id;
 				$dataSelect['id_user'] = $idUser;
-				$dataSelect['deleted'] = "N";
-				$getGrup = $this->model->select($dataSelect, $this->table);
+				/*$dataSelect['deleted'] = "N";*/
+				// $getGrup = $this->model->select($dataSelect, $this->table);
+				$getGrup = $this->model->rawQuery("select m_grup.* from t_grup
+													inner join m_user on m_user.id = t_grup.id_user
+													inner join m_grup on m_grup.id = t_grup.id_grup
+													where m_user.id = ".$idUser." group by m_grup.id");
+				// print_r($this->db->last_query());
 				if ($getGrup->num_rows() > 0) {
 					$this->code = 300;
 					$this->responses['data'] = $getGrup->result_array();
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+				}
+			}
+		}
+		$this->response($this->responses);
+	}
+	function sentchat_post(){
+		$this->code = 100;
+		$this->responses['status'] = "Field Kurang Lengkap";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";		
+		if (isset($this->paramspost)
+			&& isset($this->paramspost['key']) 
+			&& isset($this->paramspost['id_grup'])
+			&& isset($this->paramspost['pesan'])) {
+			$this->code = 201;
+			$this->responses['status'] = "Key Tidak Valid";
+			$this->responses['code'] = $this->code;
+			$dataSelect['key'] = $this->paramspost['key'];
+			$selectdata = $this->model->select($dataSelect, $this->table);
+			if ($selectdata->num_rows() > 0) {
+				/*key valid*/
+				$this->code = 202;
+				$this->responses['status'] = "Gagal Mengirim Pesan";
+				$this->responses['code'] = $this->code;
+				$this->table = 't_message';
+				$dataInsert['id_grup'] = $this->paramspost['id_grup'];
+				$dataInsert['id_user'] = $selectdata->row()->id;
+				$dataInsert['type'] = "TEXT";
+				$dataInsert['text'] = $this->paramspost['pesan'];				
+				$insertPesan = $this->model->insert($dataInsert, $this->table);
+				if ($insertPesan) {
+					$this->code = 300;
 					$this->responses['status'] = "Ok";
 					$this->responses['code'] = $this->code;
 				}
@@ -189,7 +228,25 @@ class User extends REST_Controller {
 				$this->table = 't_message';
 				$dataSelect = array();
 				$dataSelect['id_grup'] = $this->paramspost['id_grup'];
-				$getGrup = $this->model->select($dataSelect, $this->table);
+				$sQuery = "
+					select 
+						t_message.id,
+						m_grup.id as id_grup,
+						m_user.id as id_user,
+						m_user.nama as nama_user,
+						m_user.image as image_user,
+						m_grup.nama_grup as nama_grup,
+						t_message.type,
+						t_message.text,
+						t_message.deleted,
+						t_message.date_add,
+						t_message.sha
+					from t_message
+					inner join m_user on m_user.id = t_message.id_user
+					inner join m_grup on m_grup.id = t_message.id_grup
+					where m_grup.id =".$this->paramspost['id_grup'];
+				// $getGrup = $this->model->select($dataSelect, $this->table);
+				$getGrup = $this->model->rawQuery($sQuery);
 				if ($getGrup->num_rows() > 0) {
 					$this->code = 300;
 					$this->responses['data'] = $getGrup->result_array();
@@ -469,6 +526,65 @@ class User extends REST_Controller {
 		}
 		$this->response($this->responses);		
 	}
+	function listmember_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key']) && isset($this->paramspost['id_grup'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 201;
+				$this->responses['status'] = "Gagal Mengambil Daftar Lokasi";
+				$this->responses['code'] = $this->code;
+				$this->table = 't_message';
+				$getGrup = $this->model->rawQuery("
+						select t_grup.id_grup as id_grup, m_user.*
+						from t_grup
+						left join m_user on m_user.id = t_grup.id_user
+						where t_grup.id_grup = ".$this->paramspost['id_grup']." group by m_user.id
+					");
+				if ($getGrup->num_rows() > 0) {
+					$this->code = 300;
+					$this->responses['data'] = $getGrup->result_array();
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+				}
+			}
+		}
+		$this->response($this->responses);	
+	}	
+	function locationmembergrup_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key']) && isset($this->paramspost['id_grup'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 201;
+				$this->responses['status'] = "Gagal Mengambil Daftar Lokasi";
+				$this->responses['code'] = $this->code;
+				$this->table = 't_message';
+				$getGrup = $this->model->rawQuery("
+						select t_grup.id_grup as id_grup, m_user.id, m_user.nama, m_user.image, t_tracking.latitude, t_tracking.longitude, t_tracking.sha 
+						from t_grup
+						left join m_user on m_user.id = t_grup.id_user
+						left join t_tracking on t_tracking.id_user = m_user.id
+						where t_grup.id_grup = ".$this->paramspost['id_grup']." group by m_user.id
+					");
+				if ($getGrup->num_rows() > 0) {
+					$this->code = 300;
+					$this->responses['data'] = $getGrup->result_array();
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+				}
+			}
+		}
+		$this->response($this->responses);	
+	}	
 	function confirmgrup_post(){
 		$this->code = 202;
 		$this->responses['status'] = "Token Tidak Valid";
@@ -551,5 +667,89 @@ class User extends REST_Controller {
 			}
 		}		
 		$this->response($this->responses);				
+	}
+	function add_location_group_post(){
+		$this->code = 100;
+		$this->responses['status'] = "Field Kurang Lengkap";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		/*id_grup*/
+		/*nama_lokasi*/
+		/*latitude*/
+		/*longitude*/
+		/*prioritas*/
+		/*type { base / destination }*/
+		if (isset($this->paramspost)
+			&& isset($this->paramspost['key']) 
+			&& isset($this->paramspost['id_grup'])
+			&& isset($this->paramspost['nama_lokasi'])
+			&& isset($this->paramspost['latitude'])
+			&& isset($this->paramspost['longitude'])
+			&& isset($this->paramspost['prioritas'])
+			&& isset($this->paramspost['type'])) {
+			$this->code = 201;
+			$this->responses['status'] = "Key Tidak Valid";
+			$this->responses['code'] = $this->code;
+			$dataSelect['key'] = $this->paramspost['key'];
+			$selectdata = $this->model->select($dataSelect, $this->table);
+			if ($selectdata->num_rows() > 0) {
+				/*key valid*/
+				$this->code = 202;
+				$this->responses['status'] = "Gagal Menambah Lokasi";
+				$this->responses['code'] = $this->code;
+				$this->table = 't_lokasi';
+				$dataInsert['id_grup'] = $this->paramspost['id_grup'];
+				$dataInsert['nama_lokasi'] = $this->paramspost['nama_lokasi'];
+				$dataInsert['latitude'] = $this->paramspost['latitude'];
+				$dataInsert['longitude'] = $this->paramspost['longitude'];
+				$dataInsert['prioritas'] = $this->paramspost['prioritas'];
+				$dataInsert['type'] = $this->paramspost['type'];
+				$insertLokasi = $this->model->insert($dataInsert, $this->table);
+				if ($insertLokasi) {
+					$this->code = 300;
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+				}
+			}
+		}
+		$this->response($this->responses);
+	}
+	function get_location_group_post(){
+		/*select t_lokasi.* from t_lokasi
+		inner join m_grup on m_grup.id = t_lokasi.id_grup
+		inner join t_grup on t_grup.id_grup = m_grup.id
+		inner join m_user on m_user.id = t_grup.id_user
+		where m_grup.id = 380 and m_user.id = 17*/
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key']) && isset($this->paramspost['id_grup'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 201;
+				$this->responses['status'] = "Gagal Mengambil Daftar Lokasi";
+				$this->responses['code'] = $this->code;
+				$this->table = 't_message';
+				$getLocation = $this->model->rawQuery("
+						select t_lokasi.* from t_lokasi
+						inner join m_grup on m_grup.id = t_lokasi.id_grup
+						inner join t_grup on t_grup.id_grup = m_grup.id
+						inner join m_user on m_user.id = t_grup.id_user
+						where m_grup.id = ".$this->paramspost['id_grup']." and m_user.id = ".$dataUser->row()->id."
+					");
+				if ($getLocation->num_rows() > 0) {
+					$this->code = 300;
+					$this->responses['data'] = $getLocation->result_array();
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+				}
+			}
+		}
+		$this->response($this->responses);			
+	}
+	function info(){
+		phpinfo();
 	}
 }
