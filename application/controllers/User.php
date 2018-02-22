@@ -89,6 +89,79 @@ class User extends REST_Controller {
 		}
 		$this->response($this->responses);
 	}
+	function updateprofile_post(){
+		$this->code = 100;
+		$this->responses['status'] = "Field Kurang Lengkap";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if ( isset($this->paramspost['key'])
+			&& isset($this->paramspost['nama']) 
+			&& isset($this->paramspost['alamat'])
+			&& isset($this->paramspost['no_telp']) 
+			&& isset($this->paramspost['email']) ) {
+				$dataSelectKey['key'] = $this->paramspost['key'];
+				$dataSelectKey['confirm'] = "Y";
+				$getDataByKey = $this->model->select($dataSelectKey, $this->table);
+				if ($getDataByKey->num_rows() > 0) {
+					// data sudah ada tinggal update
+					// berarti di daftarkan dengan no hp oleh leader
+					$idUser = $getDataByKey->row()->id;
+					$dataCondition['id'] = $idUser;
+					$dataUpdate['nama'] = $this->paramspost['nama'];
+					$dataUpdate['email'] = $this->paramspost['email'];
+					$dataUpdate['alamat'] = $this->paramspost['alamat'];
+					$update = $this->model->update($dataCondition, $dataUpdate, $this->table);
+					if ($update) {
+						$this->code = 300;
+						$this->responses['status'] = "Update Berhasil";
+						$this->responses['code'] = $this->code;
+					}
+				}
+		}
+		$this->response($this->responses);		
+	}	
+	function upload_post(){		
+        $config['upload_path']          = './uploads/';
+        $config['allowed_types']        = 'gif|jpg|png';
+        $config['max_size']             = 1000;
+        $config['max_width']            = 2048;
+        $config['max_height']           = 2048;
+        $config['overwrite'] 			= TRUE;
+
+        $this->load->library('upload', $config);
+
+		$this->code = 202;
+		$this->responses['status'] = "Gagal Upload Image";
+		$this->responses['code'] = $this->code;
+		if (isset($this->paramspost['key'])) {
+	        if ($this->upload->do_upload('userfile')){
+	        	$localResponse = array();
+	        	$localResponse['data'] = $this->upload->data()['file_name'];
+
+	        	$dataCondition['key'] = $this->paramspost['key'];
+	        	$dataUpdate['image'] = base_url('uploads/'.$this->upload->data()['file_name']);
+				$this->code = 201;
+				// $this->responses = $localResponse;
+				$this->responses['status'] = "Gagal Update Image";
+				$this->responses['code'] = $this->code;
+	        	$update = $this->model->update($dataCondition, $dataUpdate, 'm_user');
+	        	if ($update) {
+	        		# code...
+					$this->code = 300;
+					$this->responses['status'] = "Ok";
+					$this->responses['code'] = $this->code;
+	        	}
+	        }else{
+	        	$localResponse = array();
+	        	$localResponse['data'] = $this->upload->display_errors();
+				$this->code = 201;
+				$this->responses = $localResponse;
+				$this->responses['status'] = "Gagal Upload";
+				$this->responses['code'] = $this->code;
+	        }
+		}
+		$this->response($this->responses);
+	}	
 	function login_post(){
 		$this->code = 100;
 		$this->responses['status'] = "Field Kurang Lengkap";
@@ -164,7 +237,21 @@ class User extends REST_Controller {
 				$dataSelect['id_user'] = $idUser;
 				/*$dataSelect['deleted'] = "N";*/
 				// $getGrup = $this->model->select($dataSelect, $this->table);
-				$getGrup = $this->model->rawQuery("select m_grup.* from t_grup
+				$getGrup = $this->model->rawQuery("select 
+													m_grup.id,
+													m_grup.nama_grup,
+													m_grup.id_user,
+													m_grup.masa_aktif,
+													m_grup.date_add,
+													m_grup.date_end,
+													m_grup.paid,
+													m_grup.deleted,
+													m_grup.kuota_free,
+													t_grup.sha as sha_grup,
+													m_grup.sha as sha
+													(select nama from m_user where id = m_grup.id_user) as nama_user,
+													t_grup.confirmation as confirmation 
+													from t_grup
 													inner join m_user on m_user.id = t_grup.id_user
 													inner join m_grup on m_grup.id = t_grup.id_grup
 													where m_user.id = ".$idUser." group by m_grup.id");
@@ -290,6 +377,38 @@ class User extends REST_Controller {
 		}
 		$this->response($this->responses);		
 	}
+	function updatepassword_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key']) && isset($this->paramspost['oldpassword'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataSelect['password'] = $this->paramspost['oldpassword'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 100;
+				$this->responses['status'] = "Field Kurang Lengkap";
+				$this->responses['code'] = $this->code;
+				if (isset($this->paramspost['oldpassword'])
+					&& isset($this->paramspost['newpassword'])) {
+					$this->code = 201;
+					$this->responses['status'] = "Gagal Merubah Password";
+					$this->responses['code'] = $this->code;
+
+					$dataUpdateCondition['id'] = $dataUser->row()->id;
+					$dataUpdateArgument['password'] = $this->paramspost['newpassword'];
+					$updatePass = $this->model->update($dataUpdateCondition, $dataUpdateArgument, $this->table);
+					if ($updatePass) {
+						$this->code = 300;
+						$this->responses['status'] = "Password Berhasil Dirubah";
+						$this->responses['code'] = $this->code;	
+					}
+				}
+			}			
+		}
+		$this->response($this->responses);
+	}
 	function deletegrup_post(){
 		$this->code = 202;
 		$this->responses['status'] = "Token Tidak Valid";
@@ -306,13 +425,117 @@ class User extends REST_Controller {
 					$this->code = 201;
 					$this->responses['status'] = "Gagal Menghapus Grup";
 					$this->responses['code'] = $this->code;
-					$dataCondition['id'] = $this->paramspost['id_grup'];
-					$dataUpdate['deleted'] = "Y";
 					$this->table = "m_grup";
-					$delete = $this->model->update($dataCondition, $dataUpdate, $this->table);
+					$dataCondition['id'] = $this->paramspost['id_grup'];
+					$dataCondition['id_user'] = $dataUser->row()->id;
+					$dataUpdate['deleted'] = "Y";
+					$dataCheckRow = $this->model->select($dataCondition, $this->table);
+					if($dataCheckRow->num_rows() > 0){
+						$delete = $this->model->update($dataCondition, $dataUpdate, $this->table);
+						if ($delete) {
+							$this->code = 300;
+							$this->responses['status'] = "Grup Telah Dihapus";
+							$this->responses['code'] = $this->code;						
+						}							
+					}
+				}
+			}
+		}
+		$this->response($this->responses);			
+	}	
+	function deletemembergrup_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 100;
+				$this->responses['status'] = "Field Kurang Lengkap";
+				$this->responses['code'] = $this->code;			
+				if (isset($this->paramspost['id_grup']) || isset($this->paramspost['id_user'])) {
+					$this->code = 201;
+					$this->responses['status'] = "Gagal Menghapus Member";
+					$this->responses['code'] = $this->code;
+					$dataCondition['id_grup'] = $this->paramspost['id_grup'];
+					$dataCondition['id_user'] = $this->paramspost['id_user'];
+					$this->table = 't_grup';
+					$dataSelectTGrup = $this->model->select($dataCondition, $this->table);
+					if ($dataSelectTGrup->num_rows() > 0) {
+						$type_user = $dataSelectTGrup->row()->type_user;
+						if ($type_user == "Leader") {
+							$this->code = 201;
+							$this->responses['status'] = "Tidak dapat menghapus Leader";
+						}else{						
+							$delete = $this->model->delete($dataCondition, $this->table);
+							if ($delete) {
+								$this->code = 300;
+								$this->responses['status'] = "Member Telah Dihapus";
+								$this->responses['code'] = $this->code;	
+							}
+						}
+					}
+
+				}
+			}
+		}
+		$this->response($this->responses);			
+	}
+	function deletedestination_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 100;
+				$this->responses['status'] = "Field Kurang Lengkap";
+				$this->responses['code'] = $this->code;			
+				if (isset($this->paramspost['id_destinasi'])) {
+					$this->code = 201;
+					$this->responses['status'] = "Gagal Menghapus Destinasi Grup";
+					$this->responses['code'] = $this->code;
+					$dataCondition['id'] = $this->paramspost['id_destinasi'];
+					$dataUpdate['deleted'] = "Y";
+					$this->table = "t_lokasi";
+					$delete = $this->model->delete($dataCondition, $this->table);
 					if ($delete) {
 						$this->code = 300;
-						$this->responses['status'] = "Grup Telah Dihapus";
+						$this->responses['status'] = "Destinasi Grup Telah Dihapus";
+						$this->responses['code'] = $this->code;						
+					}
+				}
+			}
+		}
+		$this->response($this->responses);			
+	}
+	function deletecontact_post(){
+		$this->code = 202;
+		$this->responses['status'] = "Token Tidak Valid";
+		$this->responses['code'] = $this->code;
+		$this->table = "m_user";
+		if (isset($this->paramspost['key'])) {
+			$dataSelect['key'] = $this->paramspost['key'];
+			$dataUser = $this->model->select($dataSelect, $this->table);
+			if ($dataUser->num_rows() > 0) {
+				$this->code = 100;
+				$this->responses['status'] = "Field Kurang Lengkap";
+				$this->responses['code'] = $this->code;			
+				if (isset($this->paramspost['id_contact'])) {
+					$this->code = 201;
+					$this->responses['status'] = "Gagal Menghapus Contact";
+					$this->responses['code'] = $this->code;
+					$dataCondition['id_user_ori'] = $dataUser->row()->id;
+					$dataCondition['id_user_desti'] = $this->paramspost['id_contact'];
+					$this->table = "t_friend";
+					$delete = $this->model->delete($dataCondition, $this->table);
+					if ($delete) {
+						$this->code = 300;
+						$this->responses['status'] = "Contact Telah Dihapus";
 						$this->responses['code'] = $this->code;						
 					}
 				}
@@ -540,7 +763,7 @@ class User extends REST_Controller {
 				$this->responses['code'] = $this->code;
 				$this->table = 't_message';
 				$getGrup = $this->model->rawQuery("
-						select t_grup.id_grup as id_grup, m_user.*
+						select t_grup.id_grup as id_grup, t_grup.type_user as type_user, m_user.*
 						from t_grup
 						left join m_user on m_user.id = t_grup.id_user
 						where t_grup.id_grup = ".$this->paramspost['id_grup']." group by m_user.id
@@ -569,7 +792,7 @@ class User extends REST_Controller {
 				$this->responses['code'] = $this->code;
 				$this->table = 't_message';
 				$getGrup = $this->model->rawQuery("
-						select t_grup.id_grup as id_grup, m_user.id, m_user.nama, m_user.image, t_tracking.latitude, t_tracking.longitude, t_tracking.sha 
+						select t_grup.type_user as type_user, t_grup.id_grup as id_grup, m_user.id, m_user.nama, m_user.image, t_tracking.latitude, t_tracking.longitude, t_tracking.sha, t_tracking.date_modified, m_user.no_telp 
 						from t_grup
 						left join m_user on m_user.id = t_grup.id_user
 						left join t_tracking on t_tracking.id_user = m_user.id
@@ -748,8 +971,5 @@ class User extends REST_Controller {
 			}
 		}
 		$this->response($this->responses);			
-	}
-	function info(){
-		phpinfo();
 	}
 }
